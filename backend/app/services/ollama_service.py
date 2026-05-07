@@ -57,6 +57,41 @@ def choose_best_model() -> Optional[str]:
     return installed[0]
 
 
+def choose_best_embedding_model() -> Optional[str]:
+    installed = get_installed_models()
+    if not installed:
+        return None
+    for candidate in settings.ollama_embedding_priority_models:
+        if candidate in installed:
+            return candidate
+    return None
+
+
+async def generate_embeddings(inputs: list[str]) -> tuple[list[list[float]], Optional[str]]:
+    """Generate embeddings using an Ollama embedding model."""
+    model = choose_best_embedding_model()
+    if not model:
+        return [], None
+
+    payload = {
+        "model": model,
+        "input": inputs,
+        "truncate": True,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=160.0) as client:
+            response = await client.post(f"{settings.ollama_base_url}/api/embed", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            embeddings = data.get("embeddings")
+            if not isinstance(embeddings, list):
+                return [], model
+            return embeddings, model
+    except (httpx.HTTPError, KeyError, json.JSONDecodeError):
+        return [], model
+
+
 # ── Non-streaming ────────────────────────────────────────────────────────────
 
 async def generate_response(prompt: str, system: str) -> tuple[str, Optional[str]]:

@@ -660,6 +660,8 @@ class ChatMessageRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     answer: str
     conversation_id: int
+    source_model: Optional[str] = None
+    retrieved_sources: List[dict[str, Any]] = Field(default_factory=list)
 
 
 # ============== SHIPPING SCHEMAS ==============

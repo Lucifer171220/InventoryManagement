@@ -1,4 +1,6 @@
+import asyncio
 import httpx
+import logging
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_
@@ -25,9 +27,11 @@ from app.schemas import (
 from app.services.integrations import build_map_link, geocode_address, lookup_barcode, lookup_postal_code, route_distance_km
 from app.services.ollama_service import generate_response, generate_response_stream, choose_best_model
 from app.services.comfyui_service import ComfyUIError, build_product_prompt, check_comfyui_ready, generate_product_image
+from app.services.rag_service import RAGServiceError, delete_inventory_item_by_id, upsert_inventory_item_by_id
 
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
+logger = logging.getLogger(__name__)
 
 
 def build_inventory_summary_prompt(item: InventoryItem, question: str, current_user: User) -> str:
@@ -114,6 +118,10 @@ def create_item(
         item.quantity = sum(int(entry.get("quantity", 0)) for entry in payload.warehouse_quantities)
     db.commit()
     db.refresh(item)
+    try:
+        asyncio.run(upsert_inventory_item_by_id(db, item.id))
+    except RAGServiceError as exc:
+        logger.warning("RAG sync skipped after inventory create for item %s: %s", item.sku, exc)
     return item
 
 
@@ -145,6 +153,10 @@ def update_item(
         setattr(item, field, value)
     db.commit()
     db.refresh(item)
+    try:
+        asyncio.run(upsert_inventory_item_by_id(db, item.id))
+    except RAGServiceError as exc:
+        logger.warning("RAG sync skipped after inventory update for item %s: %s", item.sku, exc)
     return item
 
 
@@ -160,8 +172,13 @@ def delete_item(
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    item_id = item.id
     item.is_active = False
     db.commit()
+    try:
+        asyncio.run(delete_inventory_item_by_id(item_id))
+    except RAGServiceError as exc:
+        logger.warning("RAG delete skipped for item %s: %s", sku, exc)
 
 
 @router.post("/{sku}/summary", response_model=InventorySummaryResponse)

@@ -25,11 +25,15 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model_primary: str = "gpt-oss:latest"
     ollama_model_fallbacks: str = "gemma4:latest, qwen3.6:latest"
+    ollama_embedding_model_primary: str = "embeddinggemma:latest"
+    ollama_embedding_model_fallbacks: str = "qwen3-embedding:latest, nomic-embed-text:latest, mxbai-embed-large:latest, all-minilm:latest"
     comfyui_base_url: str = "http://127.0.0.1:8188"
     comfyui_workflow_path: str = str(BACKEND_DIR / "workflows" / "product_image_workflow_api.json")
     comfyui_timeout_seconds: int = 180
     openrouteservice_api_key: str = ""
     seed_default_users: bool = True
+    chroma_persist_directory: str = str(BACKEND_DIR / "chroma")
+    chroma_inventory_collection: str = "inventory_items"
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
@@ -47,6 +51,13 @@ class Settings(BaseSettings):
         return [
             self.ollama_model_primary,
             *[item.strip() for item in self.ollama_model_fallbacks.split(",") if item.strip()],
+        ]
+
+    @property
+    def ollama_embedding_priority_models(self) -> List[str]:
+        return [
+            self.ollama_embedding_model_primary,
+            *[item.strip() for item in self.ollama_embedding_model_fallbacks.split(",") if item.strip()],
         ]
 
 

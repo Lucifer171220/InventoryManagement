@@ -22,6 +22,9 @@ env/
 .env
 *.env.local
 
+# ChromaDB vector database
+backend/chroma/
+
 # IDE
 .idea/
 .vscode/
